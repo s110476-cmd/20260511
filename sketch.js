@@ -58,21 +58,21 @@ function draw() {
 
   // 手勢辨識：偵測揮手切換臉譜
   if (hands.length > 0) {
-    let hand = hands[0]; // 只追蹤第一隻手以保持穩定，避免多手干擾
+    let hand = hands[0]; 
     let currentWristX = hand.wrist.x;
 
-    // 確保有上一次的座標才計算位移
-    if (prevWristX !== 0) {
-      let vx = currentWristX - prevWristX; // 計算前後幀位移量
+    // 只有當手腕偵測可信度高且不是第一幀時才處理
+    if (hand.wrist.confidence > 0.1 && prevWristX !== 0) {
+      let vx = currentWristX - prevWristX; 
 
-      if (millis() - lastWaveTime > 500) { // 0.5 秒冷卻時間，避免連續觸發
-        // 將門檻值從 40 調降至 20，讓揮手動作更容易被辨識
-        if (vx < -20) {
-          // 往右揮（相機座標 x 變小）：換下一張
+      // 加入位移上限 (150) 防止手部閃爍造成的隨機跳圖
+      if (millis() - lastWaveTime > 800) { 
+        if (vx < -15 && vx > -150) {
+          // 往右揮（相機座標 x 變小，視覺座標往右）：換下一張
           currentMaskIndex = (currentMaskIndex + 1) % maskImages.length;
           lastWaveTime = millis();
-        } else if (vx > 20) {
-          // 往左揮（相機座標 x 變大）：回上一張
+        } else if (vx > 15 && vx < 150) {
+          // 往左揮（相機座標 x 變大，視覺座標往左）：回上一張
           currentMaskIndex = (currentMaskIndex - 1 + maskImages.length) % maskImages.length;
           lastWaveTime = millis();
         }
