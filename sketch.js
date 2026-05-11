@@ -1,18 +1,18 @@
 let capture;
 let bodyPose;
-let handPose; // 加入手勢辨識變數
+let handPose;
 let poses = [];
-let hands = []; // 存放手勢偵測結果
-let earringImages = []; // 用陣列存放 5 個耳環圖片
-let currentEarringIndex = 0; // 目前顯示的耳環索引 (0-4)
+let hands = [];
+let earringImages = [];
+let currentEarringIndex = 0; // 預設顯示第一款耳環
 
 function preload() {
   // 載入 bodyPose 模型
   bodyPose = ml5.bodyPose();
   // 載入 handPose 模型
   handPose = ml5.handPose();
-
-  // 載入 5 個耳環圖片，路徑依據需求設定
+  
+  // 載入所有耳環圖片
   earringImages[0] = loadImage('pictures/acc1_ring.png');
   earringImages[1] = loadImage('pictures/acc2_pearl.png');
   earringImages[2] = loadImage('pictures/acc3_tassel.png');
@@ -47,27 +47,35 @@ function draw() {
   let x = (width - vWidth) / 2;
   let y = (height - vHeight) / 2;
 
-  // 偵測手勢手指數量並切換耳環
-  if (hands.length > 0) {
-    let fingerCount = getFingerCount(hands[0]);
-    // 如果手指數量在 1~5 之間，更新目前使用的圖片索引
-    if (fingerCount >= 1 && fingerCount <= 5) {
-      currentEarringIndex = fingerCount - 1;
-    }
-  }
-
   push();
   // 實作左右顛倒（鏡像）
   translate(x + vWidth, y);
   scale(-1, 1);
   image(capture, 0, 0, vWidth, vHeight);
 
+  // 手勢辨識與切換耳環
+  if (hands.length > 0) {
+    let hand = hands[0];
+    let count = 0;
+    
+    // 判斷手指是否伸直 (指尖 y 座標小於關節 y 座標)
+    if (hand.index_finger_tip.y < hand.index_finger_pip.y) count++;
+    if (hand.middle_finger_tip.y < hand.middle_finger_pip.y) count++;
+    if (hand.ring_finger_tip.y < hand.ring_finger_pip.y) count++;
+    if (hand.pinky_finger_tip.y < hand.pinky_finger_pip.y) count++;
+    if (hand.thumb_tip.y < hand.thumb_ip.y) count++;
+
+    // 根據手指數量 (1-5) 切換對應的耳環
+    if (count >= 1 && count <= 5) {
+      currentEarringIndex = count - 1;
+    }
+  }
+
   // 繪製耳垂位置
   if (poses.length > 0) {
     let pose = poses[0];
-    
     let points = [pose.left_ear, pose.right_ear];
-    let img = earringImages[currentEarringIndex];
+    let earringImage = earringImages[currentEarringIndex];
  
     points.forEach(pt => {
       if (pt && pt.confidence > 0.1) {
@@ -80,37 +88,17 @@ function draw() {
         noStroke();
         circle(px, py + 5, 12);
  
-        // 繪製目前選中的耳環圖片
-        if (img) {
-          let earringW = 30; // 設定耳環顯示寬度
-          let earringH = earringW * (img.height / img.width); // 依比例計算高度
-          image(img, px - earringW / 2, py + 5 - earringH / 2, earringW, earringH);
+        // 繪製對應的耳環圖片
+        if (earringImage) {
+          let earringW = 40; // 調大寬度使效果較明顯
+          let earringH = earringW * (earringImage.height / earringImage.width);
+          // 將耳環圖片中心掛在耳垂點 (py + 5)
+          image(earringImage, px - earringW / 2, py + 5 - earringH / 4, earringW, earringH);
         }
       }
     });
   }
   pop();
-}
-
-// 計算伸出的手指頭數量的輔助函式
-function getFingerCount(hand) {
-  let count = 0;
-  // 偵測食指、中指、無名指、小指是否伸直 (比較指尖與關節的 Y 座標)
-  let tips = [8, 12, 16, 20];
-  let pips = [6, 10, 14, 18];
-  for (let i = 0; i < tips.length; i++) {
-    if (hand.keypoints[tips[i]].y < hand.keypoints[pips[i]].y) {
-      count++;
-    }
-  }
-  // 大拇指判定：檢查指尖是否遠離手掌根部
-  let thumbTip = hand.keypoints[4];
-  let thumbBase = hand.keypoints[2];
-  let pinkyBase = hand.keypoints[17];
-  if (dist(thumbTip.x, thumbTip.y, pinkyBase.x, pinkyBase.y) > dist(thumbBase.x, thumbBase.y, pinkyBase.x, pinkyBase.y)) {
-    count++;
-  }
-  return count;
 }
 
 function windowResized() {
