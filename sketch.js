@@ -3,8 +3,10 @@ let bodyPose;
 let handPose;
 let poses = [];
 let hands = [];
-let earringImages = [];
-let currentEarringIndex = 0; // 預設顯示第一款耳環
+let maskImages = [];
+let currentMaskIndex = 0; // 預設顯示第一款臉譜
+let lastWaveTime = 0;
+let prevWristX = 0;
 
 function preload() {
   // 載入 bodyPose 模型
@@ -12,12 +14,13 @@ function preload() {
   // 載入 handPose 模型
   handPose = ml5.handPose();
   
-  // 載入所有耳環圖片
-  earringImages[0] = loadImage('pictures/acc1_ring.png');
-  earringImages[1] = loadImage('pictures/acc2_pearl.png');
-  earringImages[2] = loadImage('pictures/acc3_tassel.png');
-  earringImages[3] = loadImage('pictures/acc4_jade.png');
-  earringImages[4] = loadImage('pictures/acc5_phoenix.png');
+  // 載入臉譜圖片 (存放於 mask 目錄)
+  maskImages[0] = loadImage('mask/4379901.png');
+  maskImages[1] = loadImage('mask/4379902.png');
+  maskImages[2] = loadImage('mask/mask1_red.png');
+  maskImages[3] = loadImage('mask/mask2_blue.png');
+  maskImages[4] = loadImage('mask/mask3_gold.png');
+  maskImages[5] = loadImage('mask/mask4_white.png');
 }
 
 function setup() {
@@ -53,56 +56,50 @@ function draw() {
   scale(-1, 1);
   image(capture, 0, 0, vWidth, vHeight);
 
-  // 手勢辨識與切換耳環 (支援左手與右手)
+  // 手勢辨識：偵測揮手切換臉譜
   if (hands.length > 0) {
-    // 檢查偵測到的每一隻手
     for (let hand of hands) {
-      let count = 0;
+      let currentWristX = hand.wrist.x;
+      let dx = abs(currentWristX - prevWristX);
       
-      // 改用掌指關節 (mcp) 作為基準，比中間關節 (pip) 更穩定，減少手指半彎時的誤判
-      if (hand.index_finger_tip.y < hand.index_finger_mcp.y) count++;
-      if (hand.middle_finger_tip.y < hand.middle_finger_mcp.y) count++;
-      if (hand.ring_finger_tip.y < hand.ring_finger_mcp.y) count++;
-      if (hand.pinky_finger_tip.y < hand.pinky_finger_mcp.y) count++;
-      
-      // 大拇指判定優化：比較指尖到手腕與指根到手腕的距離
-      let d_tip = dist(hand.thumb_tip.x, hand.thumb_tip.y, hand.wrist.x, hand.wrist.y);
-      let d_joint = dist(hand.thumb_mcp.x, hand.thumb_mcp.y, hand.wrist.x, hand.wrist.y);
-      if (d_tip > d_joint * 1.2) count++;
-
-      // 根據手指數量 (1-5) 切換對應的耳環
-      if (count >= 1 && count <= 5) {
-        currentEarringIndex = count - 1;
+      // 如果手部水平移動速度夠快 (大於 40 像素)，且距離上次更換超過 0.5 秒
+      if (dx > 40 && millis() - lastWaveTime > 500) {
+        currentMaskIndex = (currentMaskIndex + 1) % maskImages.length;
+        lastWaveTime = millis();
       }
+      
+      prevWristX = currentWristX;
+      break; // 只要有一隻手揮動就觸發切換
     }
   }
 
-  // 繪製耳垂位置
+  // 臉部辨識：繪製臉譜
   if (poses.length > 0) {
     let pose = poses[0];
-    let points = [pose.left_ear, pose.right_ear];
-    let earringImage = earringImages[currentEarringIndex];
+    let nose = pose.nose;
+    let leftEar = pose.left_ear;
+    let rightEar = pose.right_ear;
  
-    points.forEach(pt => {
-      if (pt && pt.confidence > 0.1) {
-        // 將原始影像座標映射到畫布上的縮放尺寸
-        let px = map(pt.x, 0, capture.width, 0, vWidth);
-        let py = map(pt.y, 0, capture.height, 0, vHeight);
-        
-        // 在耳朵下方一點點的位置畫圓（模擬耳垂）
-        fill('yellow');
-        noStroke();
-        circle(px, py + 5, 12);
+    // 確保關鍵點的可信度足夠
+    if (nose.confidence > 0.1 && leftEar.confidence > 0.1 && rightEar.confidence > 0.1) {
+      let nx = map(nose.x, 0, capture.width, 0, vWidth);
+      let ny = map(nose.y, 0, capture.height, 0, vHeight);
+      let elx = map(leftEar.x, 0, capture.width, 0, vWidth);
+      let ely = map(leftEar.y, 0, capture.height, 0, vHeight);
+      let erx = map(rightEar.x, 0, capture.width, 0, vWidth);
+      let ery = map(rightEar.y, 0, capture.height, 0, vHeight);
+
+      // 計算臉部寬度（以兩耳距離為基準）
+      let faceWidth = dist(elx, ely, erx, ery);
+      let maskImg = maskImages[currentMaskIndex];
+      
+      // 調整臉譜大小：寬度設為耳距的 2.4 倍以完整覆蓋臉部
+      let mw = faceWidth * 2.4;
+      let mh = mw * (maskImg.height / maskImg.width);
  
-        // 繪製對應的耳環圖片
-        if (earringImage) {
-          let earringW = 40; // 調大寬度使效果較明顯
-          let earringH = earringW * (earringImage.height / earringImage.width);
-          // 將耳環圖片中心掛在耳垂點 (py + 5)
-          image(earringImage, px - earringW / 2, py + 5 - earringH / 4, earringW, earringH);
-        }
-      }
-    });
+      // 將臉譜中心對齊鼻頭位置，並稍微上移以符合五官分佈
+      image(maskImg, nx - mw / 2, ny - mh * 0.6, mw, mh);
+    }
   }
   pop();
 }
