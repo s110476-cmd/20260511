@@ -15,7 +15,7 @@ function preload() {
   // 載入 5 個耳環圖片，路徑依據需求設定
   earringImages[0] = loadImage('pictures/acc1_ring.png');
   earringImages[1] = loadImage('pictures/acc2_pearl.png');
-  earringImages[2] = loadImage('pic/acc3_tassel.png');
+  earringImages[2] = loadImage('pictures/acc3_tassel.png');
   earringImages[3] = loadImage('pictures/acc4_jade.png');
   earringImages[4] = loadImage('pictures/acc5_phoenix.png');
 }
