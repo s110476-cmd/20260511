@@ -53,21 +53,27 @@ function draw() {
   scale(-1, 1);
   image(capture, 0, 0, vWidth, vHeight);
 
-  // 手勢辨識與切換耳環
+  // 手勢辨識與切換耳環 (支援左手與右手)
   if (hands.length > 0) {
-    let hand = hands[0];
-    let count = 0;
-    
-    // 判斷手指是否伸直 (指尖 y 座標小於關節 y 座標)
-    if (hand.index_finger_tip.y < hand.index_finger_pip.y) count++;
-    if (hand.middle_finger_tip.y < hand.middle_finger_pip.y) count++;
-    if (hand.ring_finger_tip.y < hand.ring_finger_pip.y) count++;
-    if (hand.pinky_finger_tip.y < hand.pinky_finger_pip.y) count++;
-    if (hand.thumb_tip.y < hand.thumb_ip.y) count++;
+    // 檢查偵測到的每一隻手
+    for (let hand of hands) {
+      let count = 0;
+      
+      // 改用掌指關節 (mcp) 作為基準，比中間關節 (pip) 更穩定，減少手指半彎時的誤判
+      if (hand.index_finger_tip.y < hand.index_finger_mcp.y) count++;
+      if (hand.middle_finger_tip.y < hand.middle_finger_mcp.y) count++;
+      if (hand.ring_finger_tip.y < hand.ring_finger_mcp.y) count++;
+      if (hand.pinky_finger_tip.y < hand.pinky_finger_mcp.y) count++;
+      
+      // 大拇指判定優化：比較指尖到手腕與指根到手腕的距離
+      let d_tip = dist(hand.thumb_tip.x, hand.thumb_tip.y, hand.wrist.x, hand.wrist.y);
+      let d_joint = dist(hand.thumb_mcp.x, hand.thumb_mcp.y, hand.wrist.x, hand.wrist.y);
+      if (d_tip > d_joint * 1.2) count++;
 
-    // 根據手指數量 (1-5) 切換對應的耳環
-    if (count >= 1 && count <= 5) {
-      currentEarringIndex = count - 1;
+      // 根據手指數量 (1-5) 切換對應的耳環
+      if (count >= 1 && count <= 5) {
+        currentEarringIndex = count - 1;
+      }
     }
   }
 
